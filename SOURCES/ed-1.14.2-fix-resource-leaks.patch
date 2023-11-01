@@ -1,0 +1,76 @@
+diff -urN ed-1.14.2/carg_parser.c ed-1.14.2_patched/carg_parser.c
+--- ed-1.14.2/carg_parser.c	2017-01-12 23:05:08.000000000 +0100
++++ ed-1.14.2_patched/carg_parser.c	2018-10-04 11:12:59.857570021 +0200
+@@ -204,6 +204,8 @@
+   int non_options_size = 0;		/* number of skipped non-options */
+   int argind = 1;			/* index in argv */
+   int i;
++  int Status = 0;
++  void * tmp = NULL;
+ 
+   ap->data = 0;
+   ap->error = 0;
+@@ -223,9 +225,15 @@
+       if( ch2 == '-' )
+         {
+         if( !argv[argind][2] ) { ++argind; break; }	/* we found "--" */
+-        else if( !parse_long_option( ap, opt, arg, options, &argind ) ) return 0;
++        else if( !parse_long_option( ap, opt, arg, options, &argind ) ) {
++          Status = 0;
++          goto Exit;
++          }
+         }
+-      else if( !parse_short_option( ap, opt, arg, options, &argind ) ) return 0;
++      else if( !parse_short_option( ap, opt, arg, options, &argind ) ) {
++          Status = 0;
++          goto Exit;
++          }
+       if( ap->error ) break;
+       }
+     else
+@@ -234,7 +242,7 @@
+         { if( !push_back_record( ap, 0, argv[argind++] ) ) return 0; }
+       else
+         {
+-        void * tmp = ap_resize_buffer( non_options,
++        tmp = ap_resize_buffer( non_options,
+                        ( non_options_size + 1 ) * sizeof *non_options );
+         if( !tmp ) return 0;
+         non_options = (const char **)tmp;
+@@ -246,12 +254,21 @@
+   else
+     {
+     for( i = 0; i < non_options_size; ++i )
+-      if( !push_back_record( ap, 0, non_options[i] ) ) return 0;
++      if( !push_back_record( ap, 0, non_options[i] ) ) {
++        Status = 0;
++        goto Exit;
++      }
+     while( argind < argc )
+-      if( !push_back_record( ap, 0, argv[argind++] ) ) return 0;
++      if( !push_back_record( ap, 0, argv[argind++] ) ) {
++        Status = 0;
++        goto Exit;
++      }
+     }
++  Status = 1;
++  goto Exit;
++Exit:
+   if( non_options ) free( non_options );
+-  return 1;
++  return(Status);
+   }
+ 
+ 
+diff -urN ed-1.14.2/main_loop.c ed-1.14.2_patched/main_loop.c
+--- ed-1.14.2/main_loop.c	2017-02-22 17:25:34.000000000 +0100
++++ ed-1.14.2_patched/main_loop.c	2018-10-01 17:19:46.555004735 +0200
+@@ -614,7 +614,7 @@
+                    !print_lines( second_addr, second_addr, 0 ) )
+                 return ERR;
+               break;
+-    case '#': while( *(*ibufpp)++ != '\n' ) ;
++    case '#': while( *(*ibufpp)++ != '\n' ) {} ;
+               break;
+     default : set_error_msg( "Unknown command" ); return ERR;
+     }
